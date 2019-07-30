@@ -8,8 +8,11 @@ use Bolt\Asset\Widget\Widget;
 use Bolt\Controller\Zone;
 use Bolt\Extension\SimpleExtension;
 use Silex\Application;
+use Bolt\Menu\MenuEntry;
+use Bolt\Extension\ARANOVA\AuthExtendedDashboard\Controller\BackendController;
 
-class SeoExtension extends SimpleExtension
+
+class Extension extends SimpleExtension
 {
     CONST APP_EXTENSION_VERSION = '1.0.0';
     CONST APP_EXTENSION_KEY = "aranova.authdashboard";
@@ -97,6 +100,27 @@ class SeoExtension extends SimpleExtension
                 return $twig;
             }
         );
+        $app[self::APP_EXTENSION_KEY . '.config'] = $app->share(function ($app) {
+            return $this->getConfig();
+        });
+        $app[self::APP_EXTENSION_KEY . '.controller.backend'] = $app->share(
+            function ($app) {
+                return new BackendController();
+            }
+        );
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function registerBackendControllers()
+    {
+        $app = $this->getContainer();
+        $config = $this->getConfig();
+
+        return [
+            '/' => $app[self::APP_EXTENSION_KEY . '.controller.backend']
+        ];
     }
 
     /**
@@ -105,7 +129,7 @@ class SeoExtension extends SimpleExtension
     protected function registerTwigPaths()
     {
         return [
-            'templates' => ['position' => 'prepend', 'namespace' => 'bolt'],
+            'templates'       => ['position' => 'prepend', 'namespace' => 'bolt']
         ];
     }
 

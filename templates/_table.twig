@@ -9,10 +9,22 @@
 {% block page_main %}
 
 <div class="row">
-    <div class="col-md-8 content">
-      <h2>{{ __('authextended.table_title', {'DEFAULT': 'Users List'})}}</h2>
+    <div class="col-xs-12 col-md-8 content">
+      <h2>{{ title }}</h2>
+      <div class="users-list">
+        <table class="table">
+          {% for user in users %}
+            <tr>
+              <td>{{ user.guid }}</td>
+              <td>{{ user.displayname }}</td>
+              <td>{{ user.purchasedate }}</td>
+              <td>{{ user.plan }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
     </div>
-    <aside class="col-md-4 sidebar">
+    <aside class="col-xs-12 col-md-4 sidebar">
     </aside>
 </div>
 

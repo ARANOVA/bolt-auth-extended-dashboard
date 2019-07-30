@@ -12,9 +12,17 @@
             "email": "pablo.sanchez@aranova.es"
         }
     ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "autoload": {
         "psr-4": {
             "Bolt\\Extension\\ARANOVA\\AuthExtendedDashboard\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Bolt\\Extension\\ARANOVA\\AuthExtendedDashboard\\Tests\\": "tests",
+            "Bolt\\Tests\\": "vendor/bolt/bolt/tests/phpunit/unit/"
         }
     },
     "extra": {
