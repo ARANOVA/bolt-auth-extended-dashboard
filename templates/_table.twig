@@ -1,0 +1,19 @@
+{% extends "_base/_page-nav.twig" %}
+
+{% block page_title %}
+    {{ __('authextended.table_title', {'DEFAULT': 'Users List'})}}
+{% endblock %}
+
+{% block page_nav 'Settings/Extensions' %}
+
+{% block page_main %}
+
+<div class="row">
+    <div class="col-md-8 content">
+      <h2>{{ __('authextended.table_title', {'DEFAULT': 'Users List'})}}</h2>
+    </div>
+    <aside class="col-md-4 sidebar">
+    </aside>
+</div>
+
+{% endblock %}

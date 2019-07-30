@@ -1,0 +1,3 @@
+templates:
+    table: bolt/_table.twig
+    dashboard: bolt/_dashboard.twig
