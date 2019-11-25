@@ -1,19 +1,61 @@
 {% extends "_base/_page-nav.twig" %}
 
 {% block page_title %}
-    {{ __('authextended.dashboard_title', {'DEFAULT': 'Users Dashboard'})}}
+  Alumnos
 {% endblock %}
+
+{% block page_subtitle %}
+  Dashboard
+{% endblock page_subtitle %}
 
 {% block page_nav 'Settings/Extensions' %}
 
 {% block page_main %}
 
-<div class="row">
-    <div class="col-md-8 content">
-      <h2>{{ __('authextended.dashboard_title', {'DEFAULT': 'Users Dashboard'})}}</h2>
+<div class="stats">
+  <div class="note alert alert-info" id="adblocker-notice">
+    ¡Advertencia!: Si no ves las gráficas de esta página comprueba que tu navegador no bloquea archivos importantes.
+  </div>
+  <div class="col-xs-12" id="alert-notice"></div>
+
+  <div class="wrapper lastweek">
+    <h2>Nuevos alumnos en los últimos 7 días, comparados con la anterior</h2>
+    <div id="chart-0-container" class="chart"></div>
+    <div class="Chartjs-legend" id="legend-0-container"></div>
+  </div>
+  <div class="wrapper activelastweek">
+    <h2>Alumnos activos en los últimos 7 días, comparados con la anterior</h2>
+    <div id="chart-0b-container" class="chart"></div>
+    <div class="Chartjs-legend" id="legend-0b-container"></div>
+  </div>
+  <div class="wrapper monthbymonth">
+    <h2>Nuevos alumnos en los últimos 30 días, comparados con el anterior</h2>
+    <div id="chart-1-container" class="chart"></div>
+    <div class="Chartjs-legend" id="legend-1-container"></div>
+  </div>
+  <div class="wrapper yearbyyear">
+    <h2>Nuevos alumnos en el último año, comparados con el anterior</h2>
+    <div id="chart-2-container" class="chart"></div>
+    <div class="Chartjs-legend" id="legend-2-container"></div>
+  </div>
+  <div class="wrapper geo">
+    <h2>Alumnos por estado <span id="legend-3-container" class="grey">(...)</span></h2>
+    <div id="chart-3-container" class="chart"></div>
+    <div class="Chartjs-legend" id="legend-3-container"></div>
+  </div>
+  <div class="wrapper geo">
+    <h2>Alumnos por tipo <span id="legend-4-container" class="grey">(...)</span></h2>
+    <div id="chart-4-container" class="chart"></div>
+  </div>
+  <div class="wrapper geo">
+    <h2>Alumnos por procedencia <span id="legend-5-container" class="grey">(...)</span></h2>
+    <div id="chart-5-container" class="chart"></div>
+    <div class="Chartjs-legend" id="legend-5-container">
     </div>
-    <aside class="col-md-4 sidebar">
-    </aside>
+  </div>
+</div>
+    <script src="{{ asset(webpath ~ '/es6-promise.min.js', 'extensions') }}" type="text/javascript"></script>
+    <script src="{{ asset(webpath ~ '/Chart.min.js', 'extensions') }}" type="text/javascript"></script>
 </div>
 
 {% endblock %}

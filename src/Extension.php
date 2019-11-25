@@ -10,7 +10,9 @@ use Bolt\Extension\SimpleExtension;
 use Silex\Application;
 use Bolt\Menu\MenuEntry;
 use Bolt\Extension\ARANOVA\AuthExtendedDashboard\Controller\BackendController;
-
+use Bolt\Extension\ARANOVA\AuthExtendedDashboard\Service\AuthService;
+use Bolt\Version;
+use Bolt\Extension\BoltAuth\Auth\Storage\Repository;
 
 class Extension extends SimpleExtension
 {
@@ -41,18 +43,18 @@ class Extension extends SimpleExtension
         /* @var \Bolt\Application $app */
         
         $menu = new MenuEntry('authdashboard', 'authdashboard');
-        $menu->setLabel("User Dashboard")
+        $menu->setLabel("Alumnos")
             ->setIcon('fa:group')
             ->setPermission('settings');
 
-        $tableMenu = MenuEntry::create('authdashboard-table', 'table');
-        $tableMenu->setLabel('Table view')
+        $tableMenu = MenuEntry::create('authdashboard-table', 'list');
+        $tableMenu->setLabel('Listado')
             ->setIcon('fa:table')
             ->setPermission('settings');
 
         
         $dashboardMenu = MenuEntry::create('authdashboard-dashboard', 'dashboard');
-        $dashboardMenu->setLabel('Dashboard view')
+        $dashboardMenu->setLabel('Dashboard')
             ->setIcon('fa:dashboard')
             ->setPermission('settings');
         
@@ -65,32 +67,14 @@ class Extension extends SimpleExtension
     /**
      * {@inheritdoc}
      */
-    protected function registerAssets()
-    {
-        $css = new Stylesheet();
-        $css->setFileName('dashboard.css')->setZone(Zone::BACKEND);
-
-        /* Ejemplo */
-        $underscoreJs = new JavaScript();
-        $underscoreJs->setFileName('underscore-min.js')->setZone(Zone::BACKEND)->setPriority(10);
-
-        $js = new JavaScript();
-        $js->setFileName('dashboard.js')->setZone(Zone::BACKEND)->setPriority(15);
-
-        $assets = [
-            $css,
-            $underscoreJs,
-            $js
-        ];
-
-        return $assets;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
     protected function registerServices(Application $app)
     {
+      
+        $this->prefix = $app['config']->get('general/database/prefix', "to_");
+        if ($this->prefix[strlen($this->prefix) - 1] != "_") {
+            $this->prefix .= "_";
+        }
+      
         $app['twig'] = $app->extend(
             'twig',
             function (\Twig_Environment $twig) use ($app) {
@@ -103,13 +87,79 @@ class Extension extends SimpleExtension
         $app[self::APP_EXTENSION_KEY . '.config'] = $app->share(function ($app) {
             return $this->getConfig();
         });
+
         $app[self::APP_EXTENSION_KEY . '.controller.backend'] = $app->share(
             function ($app) {
-                return new BackendController();
+                return new BackendController($this->getWebDirectory());
+            }
+        );
+        
+        $app[self::APP_EXTENSION_KEY . '.service'] = $app->share(
+            function () use ($app) {
+              //dump($app['storage.content_repository']);die();
+                //$cls = $app['storage.repositories']['Bolt\Extension\BoltAuth\Auth\Storage\Entity\Account'];
+                $aux = new AuthService($app['storage']->getRepository('auth_account'));
+                $aux->init($app['storage'], $app['logger.flash'], $app['config'], $app['url_generator']);
+                return $aux;
             }
         );
     }
 
+
+    /**
+     * Fetches Provider entries by GUID.
+     *
+     * @param string $guid
+     *
+     * @return Entity\Provider[]
+     */
+    private function getProvisionsByGuid($guid)
+    {
+        $app = $this->getContainer();
+        return $app['storage']->getRepository($this->prefix . 'auth_provider')->getProvisionsByGuid($guid);
+    }
+
+    /**
+     * Return last seen date from all OAuth providers for an account
+     *
+     * @param string $guid
+     *
+     * @return \DateTime
+     */
+    public function getProviders($guid = null)
+    {
+        if ($guid === null) {
+            $auth = $this->session->getAuthorisation();
+
+            if ($auth === null) {
+                return null;
+            }
+            $guid = $auth->getGuid();
+        }
+        $providerEntities = $this->getProvisionsByGuid($guid);
+        if ($providerEntities === false) {
+            return null;
+        }
+
+        /** @var Storage\Entity\Provider $providerEntity */
+        $lastupdate = null;
+        $result = null;
+        $provider = [];
+        foreach ($providerEntities as $providerEntity) {
+            $provider['lastupdate'] = $providerEntity->getLastUpdate();
+            if (!$result) {
+              $result = $providerEntity;
+            }
+            
+            if ($lastupdate <= $provider['lastupdate']) {
+                $lastupdate = $provider['lastupdate'];
+                $result = $providerEntity;
+            }
+        }
+
+        return $result;
+    }
+    
     /**
      * {@inheritdoc}
      */
@@ -118,8 +168,13 @@ class Extension extends SimpleExtension
         $app = $this->getContainer();
         $config = $this->getConfig();
 
+        $baseUrl = Version::compare('3.2.999', '<')
+            ? '/extensions/authdashboard'
+            : '/extend/authdashboard'
+        ;
+
         return [
-            '/' => $app[self::APP_EXTENSION_KEY . '.controller.backend']
+            $baseUrl => $app[self::APP_EXTENSION_KEY . '.controller.backend']
         ];
     }
 
@@ -140,6 +195,7 @@ class Extension extends SimpleExtension
     {
         return [
             'getUsers' => 'getUsers',
+            'auth_provider' => 'getProviders'
         ];
     }
 
@@ -151,10 +207,9 @@ class Extension extends SimpleExtension
      */
     public function getUsers()
     {
-        $config = $this->getConfig();
-
+        $app = $this->getContainer();
         /** @var \Bolt\Users $users */
-        $users = $this->getContainer()['auth_account'];
+        $users = $app[self::APP_EXTENSION_KEY . '.service']->getUsers();
 
         return $users;
     }

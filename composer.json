@@ -1,5 +1,5 @@
 {
-    "name": "aranova/bolt-auth-extended-dashboard",
+    "name": "aranova/auth-extended-dashboard",
     "description": "Extensión para bolt 3.x para mostrar una vista resumida de usaurios autentificados.",
     "type": "bolt-extension",
     "require": {

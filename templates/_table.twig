@@ -1,31 +1,120 @@
 {% extends "_base/_page-nav.twig" %}
 
 {% block page_title %}
-    {{ __('authextended.table_title', {'DEFAULT': 'Users List'})}}
+  Alumnos
 {% endblock %}
 
-{% block page_nav 'Settings/Extensions' %}
+{% block page_subtitle %}
+    Listado completo
+{% endblock page_subtitle %}
+
+{# clear default messages, because we use them in a different spot, in this template #}
+{% block messages "" %}
+
+{% macro column_toggle_ref(queries, column) %}
+{% set order = queries.order %}
+{% if order.startswith('-') %}
+{% set order = order[1:] %}
+{% endif %}
+    {% if order == column %}
+        {% if queries.order.startswith('-') %}
+            {% set queries = queries|merge({order: order}) %}
+        {% else %}
+          {% set queries = queries|merge({order: '-' ~ column}) %}
+        {% endif %}
+        {{ path(app.request.attributes.get('_route'), app.request.query.all|merge({ order: queries.order })) }}
+    {% else %}
+        {{ path(app.request.attributes.get('_route'), app.request.query.all|merge({ order: column })) }}
+    {% endif %}
+{% endmacro %}
 
 {% block page_main %}
+    <div class="row user-container">
+        <div class="col-xs-12">
+          <div class="col-xs-12">
+            {% include '_sub/_messages.twig' %}
+          </div>
+            <section class="user-list-container">
 
-<div class="row">
-    <div class="col-xs-12 col-md-8 content">
-      <h2>{{ title }}</h2>
-      <div class="users-list">
-        <table class="table">
-          {% for user in users %}
-            <tr>
-              <td>{{ user.guid }}</td>
-              <td>{{ user.displayname }}</td>
-              <td>{{ user.purchasedate }}</td>
-              <td>{{ user.plan }}</td>
-            </tr>
-          {% endfor %}
-        </table>
-      </div>
+                <div class="row">
+                    <div class="col-md-9">
+                        <h3>{{ title }}</h3>
+                    </div>
+                    <div class="col-md-3">
+
+                        <form class="navbar-form navbar-right" role="search">
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <input class="form-control" type="search" name="search"
+                                           tabindex="0" autocomplete="off"
+                                           autocorrect="off" autocapitalize="off" spellcheck="false"
+                                           role="textbox" aria-autocomplete="list"
+                                           placeholder="Buscar alumnos" style="width: 278px;" value="{{ queries.search }}">
+                                    <span class="input-group-addon"><i class="fa fa-search"></i></span>
+                                </div>
+                            </div>
+                        </form>
+                        
+                    </div>
+                </div>
+
+                <div class="user-list">
+                    <table class="dashboardlisting table" id="user-table">
+                        <colgroup>
+                            <col class="orders-column-guid">
+                            <col class="orders-column-name">
+                            <col class="orders-column-email">
+                            <col class="orders-column-plan">
+                            <col class="orders-column-roles">
+                            <col class="orders-column-purchasedate">
+                            <col class="orders-column-limitdate">
+                            <col class="orders-column-lastseen">
+                            <col class="orders-column-created">
+                            <col class="orders-column-createdby">
+                            <col class="orders-column-tests">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th style="display:none"><a href="{{ _self.column_toggle_ref(queries, 'guid') }}">GUID</a></th>
+                                <th><a href="{{ _self.column_toggle_ref(queries, 'displayname') }}">Nombre</a></th>
+                                <th><a href="{{ _self.column_toggle_ref(queries, 'email') }}">Email</a></th>
+                                <th>Plan</th>
+                                <th>Tipo</th>
+                                <th>Fecha de compra</th>
+                                <th>Fecha de fin</th>
+                                <th><a href="{{ _self.column_toggle_ref(queries, 'lastseen') }}">Último acceso</a></th>
+                                <th><a href="{{ _self.column_toggle_ref(queries, 'created') }}">Creado</a></th>
+                                <th><a href="{{ _self.column_toggle_ref(queries, 'createdby') }}">Creado por</a></th>
+                                <th>Tests</th>
+                            </tr>
+                        </thead>
+                        <tbody class="user-list-items">
+                          {% set usernames = getUsers() %}
+                          {% for user in users %}
+                            <tr id="order-[{{ user.guid }}]">
+                                <td class="user-guid" style="display:none">{{ user.guid }}</td>
+                                <td class="user-name">{{ (user.lastname or user.firstname) ? user.firstname ~ ' ' ~ user.lastname  : user.displayname }}</td>
+                                <td class="user-email">{{ user.email }}</td>
+                                <td class="user-plan">{{ user.plan }}</td>
+                                <td class="user-roles">{{ 'alumnok' in user.roles ? 'AlumnoK' : ('alumno' in user.roles ? 'alumno' : ('demo' in user.roles ? 'demo' : '')) }}</td>
+                                <td class="user-purchasedate">{{ user.purchasedate }}</td>
+                                <td class="user-limitdate">{{ user.limitdate }}</td>
+                                <td class="user-lastseen">{{ user.lastseen }}</td>
+                                <td class="user-created">{{ user.created }}</td>
+                                <td class="user-createdby">{{ user.createdby ? usernames[user.createdby] : '' }}</td>
+                                <td class="user-tests">{{ user.tests.ok }} / {{ user.tests.ok + user.tests.fail }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <hr/>
+            {% from '@bolt/_macro/_pager.twig' import pager %}
+            {{ pager() }}
+            
+        </div>
     </div>
-    <aside class="col-xs-12 col-md-4 sidebar">
-    </aside>
-</div>
 
-{% endblock %}
+{% endblock page_main %}
+

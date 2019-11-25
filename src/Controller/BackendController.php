@@ -2,58 +2,67 @@
 
 namespace Bolt\Extension\ARANOVA\AuthExtendedDashboard\Controller;
 
+use Bolt\Controller\Base;
 use Bolt\Controller\Zone;
 use Silex\Application;
 use Silex\ControllerCollection;
-use Silex\ControllerProviderInterface;
+use Bolt\Asset\File\JavaScript;
+use Bolt\Asset\File\Stylesheet;
+use Bolt\Filesystem\Handler\DirectoryInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Doctrine\DBAL\Exception\TableNotFoundException;
 use Pagerfanta\Exception\OutOfRangeCurrentPageException;
-use Bolt\Version;
 use Bolt\Extension\ARANOVA\AuthExtendedDashboard\Extension;
+use Bolt\Version;
 
-class BackendController implements ControllerProviderInterface
+class BackendController extends Base
 {
     
     /** @var Application */
     protected $container;
 
+    /** @var DirectoryInterface */
+    private $webPath;
+    
     /**
-     * Returns routes to connect to the given application.
+     * Constructor.
      *
-     * @param Application $app An Application instance
-     *
-     * @return ControllerCollection A ControllerCollection instance
+     * @param DirectoryInterface $webPath
      */
-    public function connect(Application $app)
+    public function __construct(DirectoryInterface $webPath)
     {
-        /** @var $ctr ControllerCollection */
-        $this->container = $app;
-        $ctr = $app['controllers_factory'];
-        $ctr->value(Zone::KEY, Zone::BACKEND);
-
+        $this->webPath = $webPath;
         $this->extensionBaseUrl = Version::compare('3.2.999', '<')
-            ? '/extensions'
-            : '/extend'
+            ? '/extensions/authdashboard'
+            : '/extend/authdashboard'
         ;
-
-        $ctr->match($this->extensionBaseUrl . '/authdashboard/table', [$this, 'usersList'])
-            ->bind('usersList')
-            ->method(Request::METHOD_GET);
-
-        $ctr->match($this->extensionBaseUrl . '/authdashboard/dashboard', [$this, 'usersDashboard'])
-            ->bind('usersDashboard')
-            ->method(Request::METHOD_GET);
-        
-        
-        $ctr->before([$this, 'before']);
-        
-        return $ctr;
     }
+    
+    protected function addRoutes(ControllerCollection $c)
+    {
+        $c->value(Zone::KEY, Zone::BACKEND);
 
+        $c->get('/usersQuery', [$this, 'getStatistics'])
+            ->bind('getStatistics');
+        
+        $c->get('/list', [$this, 'usersList'])
+            ->bind('usersList')
+            ->before([$this, 'before']);
+
+        $c->get('/dashboard', [$this, 'usersDashboard'])
+            ->bind('usersDashboard')
+            ->before([$this, 'before']);
+        
+        
+        $c->before([$this, 'before']);
+        
+        return $c;
+    }
 
     /**
      * Simple check if user is logged in
@@ -65,14 +74,10 @@ class BackendController implements ControllerProviderInterface
      */
     public function before(Request $request, Application $app)
     {
-        $this->prefix = $app['config']->get('general/database/prefix', "to_");
-        if ($this->prefix[strlen($this->prefix) - 1] != "_") {
-            $this->prefix .= "_";
-        }
-
         $user = $app['users']->getCurrentUser();
 
-        if ($user) {
+        if ($user && $this->users()->isAllowed('dashboard')) {
+            $this->addWebAssets($app, (strpos($request->getPathInfo(), '/dashboard') !== false));
             return null;
         }
         
@@ -80,6 +85,32 @@ class BackendController implements ControllerProviderInterface
         $generator = $app['url_generator'];
         return new RedirectResponse($generator->generate('dashboard'), Response::HTTP_SEE_OTHER);
     }
+
+    /**
+     * Inject web assets for our route.
+     *
+     * @param Application $app
+     */
+    private function addWebAssets(Application $app, $isDashboard)
+    {
+        /** @var AuthExtension $extension */
+        $extension = $app['extensions']->get('ARANOVA/AuthExtendedDashboard');
+        $dir = '/' . $extension->getWebDirectory()->getPath();
+        $assets = [];
+
+        if ($isDashboard) {
+          $assets = [
+              (new Stylesheet($dir . '/dashboard.css'))->setZone(Zone::BACKEND)->setLate(false),
+              (new Javascript($dir . '/dashboard.js'))->setZone(Zone::BACKEND)->setLate(false),
+              //(new Javascript($dir . '/es6-promise.min.js'))->setZone(Zone::BACKEND)->setLate(false),
+          ];
+        }
+
+        foreach ($assets as $asset) {
+            $app['asset.queue.file']->add($asset);
+        }
+    }
+
 
     /**
      * @param Application $app
@@ -99,43 +130,25 @@ class BackendController implements ControllerProviderInterface
         }
     }
 
-    private function getUsers(Request $request, Application $app) {
-        try {
-            $queries = [
-                'orderBy' => $request->query->get('orderby', 'guid'),
-                'order'   => $request->query->get('order'),
-                'search'  => $request->query->get('search'),
-            ];
-            $repo = $app['storage']->getRepository('auth_account');
-            $qb = $repo->createQueryBuilder('a');
-            $qb->innerJoin('a', $this->prefix . 'auth_account_meta', 'am', 'a.guid = am.guid');
-            $qb->select(['a.*', "am.meta as meta", "am.value as value", "am.id as metaid"]);
-            $qb->orderBy($queries['orderBy'], $queries['order']);
-            $aux = $qb->execute()->fetchAll();
-            $users = [];
-            $guids = [];
-            foreach ($aux as $data) {
-                if (!array_key_exists($data['guid'], $guids)) {
-                    $guids[$data['guid']] = [
-                        'guid' => $data['guid'],
-                        'email' => $data['email'],
-                        'displayname' => $data['displayname'],
-                        'enabled' => $data['enabled'],
-                        'verified' => $data['verified'],
-                        'roles' => $data['roles'],
-                    ];
-                }
-                $guids[$data['guid']][$data['meta']] = $data['value'];
-            }
-            foreach ($guids as $guid) {
-                array_push($users, $guid);
-            }
-        } catch (\Exception $e) {
-            $this->handleException($app, $e);
-            $users = [];
-        }
-        return $users;
+    /**
+     * Returns JSON data
+     *
+     * @param Request $request
+     * @param Application $app
+     *
+     * @return mixed
+     */
+    public function getStatistics(Request $request, Application $app)
+    {
+        $config = $app[Extension::APP_EXTENSION_KEY . '.config'];
+        $service = $app[Extension::APP_EXTENSION_KEY . '.service'];
+        
+        $data = $service->getAccountStats($request);
+        
+        return new JsonResponse($data, Response::HTTP_OK);
+        
     }
+
     /**
      * Render users list page
      *
@@ -147,12 +160,98 @@ class BackendController implements ControllerProviderInterface
     public function usersList(Request $request, Application $app)
     {
         $config = $app[Extension::APP_EXTENSION_KEY . '.config'];
-        $users = $this->getUsers($request, $app);
-        //$pager = new PagerEntity();
-        
+        try {
+            $queries = [
+                'order' => $request->query->get('order', 'guid'),
+                'search'  => $request->query->get('search'),
+            ];
+            
+            try {
+                $approved = $this->app['config']->get('general/tests/approved');
+                /** @var Pager $userdata */
+                if ($queries['search'] === null) {
+                    $accounts = $app[Extension::APP_EXTENSION_KEY . '.service']->getAccounts($queries['order'], $approved);
+                } else {
+                    $accounts = $app[Extension::APP_EXTENSION_KEY . '.service']->searchAccounts($queries['search'], $queries['order'], $approved);
+                }
+
+                $accounts
+                    ->setMaxPerPage(10)
+                    ->setCurrentPage($request->query->getInt('page_alumnos', 1))
+                    ->getCurrentPageResults()
+                ;
+            } catch (\Exception $e) {
+                $this->handleException($app, $e);
+                $orders = [];
+            }
+            $users = $accounts;
+            
+            if (!empty($users)) {
+              $manager = $app['pager'];
+              $manager->createPager('alumnos')
+                  ->setCount($users->getNbResults())
+                  ->setTotalPages($users->getNbPages())
+                  ->setCurrent($users->getCurrentPage())
+                  ->setShowingFrom($users->getCurrentPageOffsetStart())
+                  ->setShowingTo($users->getCurrentPageOffsetEnd())
+                  ->setFor('Alumnos');
+            }
+            
+            /*
+            $repo = $app['storage']->getRepository('auth_account');
+            $repo->setPagerEnabled(true);
+            $qb = $repo->createQueryBuilder('a');
+            $qb->innerJoin('a', $this->prefix . 'auth_account_meta', 'am', 'a.guid = am.guid');
+            $qb->innerJoin('a', $this->prefix . 'auth_provider', 'ap', 'a.guid = ap.guid');
+            $qb->select(['a.*', "am.meta as meta", "am.value as value", "am.id as metaid", "ap.lastseen", "ap.created", "ap.createdBy as createdby"]);
+            $qb->orderBy($queries['orderBy'], $queries['order']);
+            $qb->setMaxResults(100);
+            //echo nl2br(htmlentities($qb));
+            $aux = $qb->execute()->fetchAll();
+            $users = [];
+            $guids = [];
+            $approved = $this->app['config']->get('general/tests/approved');
+            foreach ($aux as $data) {
+                if (!array_key_exists($data['guid'], $guids)) {
+                    $guids[$data['guid']] = [
+                        'guid' => $data['guid'],
+                        'email' => $data['email'],
+                        'displayname' => $data['displayname'],
+                        'enabled' => $data['enabled'],
+                        'verified' => $data['verified'],
+                        'roles' => $data['roles'],
+                        'lastseen' => $data['lastseen'],
+                        'created' => $data['created'],
+                        'createdby' => $data['createdby'],
+                        'tests' => $this->testResume($data['guid'], $approved, 'tests')
+                    ];
+                }
+                $guids[$data['guid']][$data['meta']] = $data['value'];
+            }
+            foreach ($guids as $guid) {
+                array_push($users, $guid);
+            }
+            */
+        } catch (\Exception $e) {
+            $this->handleException($app, $e);
+            $users = [];
+        }
+       
         $html = $app['twig']->render($config['templates']['table'], [
-            'title' => 'List',
-            'users' => $users
+            'title'       => 'Lista de alumnos',
+            'users' => $users,
+            'extensionBaseUrl' => $this->extensionBaseUrl,
+            'webpath'     => $this->webPath->getPath(),
+            'queries' => $queries,
+            'pager'   => [
+                'pager' => $manager->getPager('alumnos'),
+                'surr'  => 4,
+            ],
+            'context' => [
+                'contenttype' => [
+                    'slug' => 'pager',
+                ],
+            ],
         ]);
         return new Response(new \Twig_Markup($html, 'UTF-8'));
     }
@@ -169,10 +268,9 @@ class BackendController implements ControllerProviderInterface
     {
         $config = $app[Extension::APP_EXTENSION_KEY . '.config'];
         // Obtener datos más estadísticos (COUNT, etc)
-        $users = $this->getUsers($request, $app);
         $html = $app['twig']->render($config['templates']['dashboard'], [
-            'title' => 'Dashboard',
-            'users' => $users
+            'title'       => 'Dashboard',
+            'webpath'     => $this->webPath->getPath(),
         ]);
         return new Response(new \Twig_Markup($html, 'UTF-8'));
     }
