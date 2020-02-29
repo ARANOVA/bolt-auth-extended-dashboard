@@ -41,6 +41,32 @@ class Pager extends Pagerfanta
         $this->storage = $storage;
         $this->approved = $approved;
     }
+    
+    private function videoResume($guid)
+    {
+        $res = array(
+            'principiante'  => 0,
+            'avanzado'      => 0,
+            'medio'         => 0,
+            'teoria'        => 0
+        );
+        $videos = $this->getVideoResults($guid);
+        foreach ($videos as $video) {
+          $res[$video['filtertaxonomy']] = $video['total_videos'];
+        }
+        return $res;
+    }
+
+    private function getVideoResults($guid)
+    {
+        $repo = $this->storage->getRepository('userdata');
+        $qb = $repo->createQueryBuilder();
+        $qb->select(['filtertaxonomy', 'COUNT(content_id) AS total_videos']);
+        $qb->where('contenttype="videos" and auth_user_id="' . $guid . '"');
+        $qb->groupBy('filtertaxonomy');
+        $res = $qb->execute()->fetchAll();
+        return $res;
+    }
 
     private function parseTest($test)
     {
@@ -144,7 +170,8 @@ class Pager extends Pagerfanta
                 $results[$key] = array_merge(
                   $results[$key],
                   $metas,
-                  ['tests' => $this->testResume($results[$key]['guid'], $this->approved, 'tests')]
+                  ['tests' => $this->testResume($results[$key]['guid'], $this->approved, 'tests')],
+                  ['videos' => $this->videoResume($results[$key]['guid'])]
                 );
                 //$results[$key] = $entity;
             }

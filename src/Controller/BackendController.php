@@ -12,6 +12,7 @@ use Bolt\Filesystem\Handler\DirectoryInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -52,6 +53,10 @@ class BackendController extends Base
         
         $c->get('/list', [$this, 'usersList'])
             ->bind('usersList')
+            ->before([$this, 'before']);
+
+        $c->get('/exportList', [$this, 'usersExport'])
+            ->bind('usersExport')
             ->before([$this, 'before']);
 
         $c->get('/dashboard', [$this, 'usersDashboard'])
@@ -254,6 +259,95 @@ class BackendController extends Base
             ],
         ]);
         return new Response(new \Twig_Markup($html, 'UTF-8'));
+    }
+
+    private function plainkey($key, &$data)
+    {
+      if (!is_array($data)) {
+        return [$key];
+      }
+      
+        foreach (array_keys($data) as $nkey => $ndata) {
+          $key .= implode('_', $this->plainkey($nkey, $ndata));
+        }
+      return [$key];
+    }
+
+    /**
+     * Export user list to excel
+     *
+     * @param Request $request
+     * @param Application $app
+     *
+     * @return mixed
+     */
+    public function usersExport(Request $request, Application $app)
+    {
+        ini_set('memory_limit', '-1');
+        $filename = "usersdata_" . date('Y-m-d_H-i') . ".xls";
+        //$response = new StreamedResponse();
+        $response = new Response();
+        $response->headers->set('Content-Type', 'application/vnd.ms-excel');
+        $response->headers->set('Content-Disposition', "attachment; filename=\"$filename\"");
+        $response->setCharset('UTF-8');
+        try {
+            $approved = $this->app['config']->get('general/tests/approved');
+            /** @var Pager $userdata */
+            $accounts = $app[Extension::APP_EXTENSION_KEY . '.service']->getAccounts('created', $approved);
+            $usernames = $app[Extension::APP_EXTENSION_KEY . '.service']->getUsers();
+            $users = $accounts
+                ->setMaxPerPage(10000)
+                ->setCurrentPage($request->query->getInt('page_alumnos', 1))
+                ->getCurrentPageResults();
+            $handle = fopen('php://memory', 'r+');
+            // Add CSV headers
+            $user = $users[0];
+            $headers = [];
+            $columns = array_keys($user);
+            foreach ($user as $key => $data) {
+              if (!is_array($data)) {
+                array_push($headers, $key);
+              } else {
+                foreach ($data as $n2key => $n2data) {
+                  array_push($headers, $key . "_" . $n2key);
+                }
+              }
+            }
+            fputcsv($handle, $headers);
+            foreach ($users as $user) {
+              $row = [];
+              foreach ($columns as $key) {
+                if (!array_key_exists($key, $user)) {
+                  array_push($row, '');
+                  continue;
+                }
+                if (!is_array($user[$key])) {
+                  if ($key == 'createdby' && array_key_exists($user[$key], $usernames)) {
+                    array_push($row, $usernames[$user[$key]]);
+                  } else {
+                    array_push($row, $user[$key]);
+                  }
+                } else {
+                  foreach ($user[$key] as $n2key => $n2data) {
+                    array_push($row, $n2data);
+                  }
+                }
+              }
+              fputcsv($handle, $row);
+            }
+            rewind($handle);
+            $content = stream_get_contents($handle);
+            // Close the output stream
+            fclose($handle);
+            $response->setStatusCode(Response::HTTP_OK);
+            $response->setContent($content);
+        } catch (\Exception $e) {
+            print_r($e);die();
+            $this->handleException($app, $e);
+            $response->setStatusCode(Response::HTTP_BAD_REQUEST);
+        } finally {
+            return $response;
+        }
     }
 
     /**

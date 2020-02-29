@@ -86,6 +86,8 @@
                                 <th><a href="{{ _self.column_toggle_ref(queries, 'created') }}">Creado</a></th>
                                 <th><a href="{{ _self.column_toggle_ref(queries, 'createdby') }}">Creado por</a></th>
                                 <th>Tests</th>
+                                <th>Curso</th>
+                                <th>Teoría</th>
                             </tr>
                         </thead>
                         <tbody class="user-list-items">
@@ -97,12 +99,14 @@
                                 <td class="user-email">{{ user.email }}</td>
                                 <td class="user-plan">{{ user.plan }}</td>
                                 <td class="user-roles">{{ 'alumnok' in user.roles ? 'AlumnoK' : ('alumno' in user.roles ? 'alumno' : ('demo' in user.roles ? 'demo' : '')) }}</td>
-                                <td class="user-purchasedate">{{ user.purchasedate }}</td>
-                                <td class="user-limitdate">{{ user.limitdate }}</td>
-                                <td class="user-lastseen">{{ user.lastseen }}</td>
-                                <td class="user-created">{{ user.created }}</td>
-                                <td class="user-createdby">{{ user.createdby ? usernames[user.createdby] : '' }}</td>
-                                <td class="user-tests">{{ user.tests.ok }} / {{ user.tests.ok + user.tests.fail }}</td>
+                                <td class="user-purchasedate text-center">{{ user.purchasedate }}</td>
+                                <td class="user-limitdate text-center">{{ user.limitdate }}</td>
+                                <td class="user-lastseen text-center">{{ user.lastseen }}</td>
+                                <td class="user-created text-center">{{ user.created }}</td>
+                                <td class="user-createdby text-center">{{ user.createdby ? usernames[user.createdby] : '' }}</td>
+                                <td class="user-tests text-center">{{ user.tests.ok }} / {{ user.tests.ok + user.tests.fail }}</td>
+                                <td class="user-videos-curso text-center">{{ user.videos.principiante }}/{{ user.videos.medio }}/{{ user.videos.avanzado }}</td>
+                                <td class="user-videos-teoria text-center">{{ user.videos.teoria }}</td>
                             </tr>
                         {% endfor %}
                         </tbody>
@@ -112,6 +116,8 @@
             <hr/>
             {% from '@bolt/_macro/_pager.twig' import pager %}
             {{ pager() }}
+            
+            <a href="exportList" class="btn btn-primary text-white">Exportar a excel</a>
             
         </div>
     </div>
